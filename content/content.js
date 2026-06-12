@@ -19,16 +19,17 @@
   var currentTarget = null;
   var outputFormat = 'yaml';
   var tooltipFrozen = false;  // Alt key freezes tooltip for text selection
+  var rafId = null;           // RAF id for mousemove throttling
 
   // Multi-select state
   var selections = [];        // [{ el, data, overlayEl, badgeEl, closeEl }]
   var selectionColors = [
-    '#8BBF2F', // green (accent)
-    '#3b82f6', // blue
-    '#a855f7', // purple
-    '#f97316', // orange
-    '#ec4899', // pink
-    '#06b6d4'  // cyan
+    '#8BBF2F', // accent green (matches toggle btn)
+    '#A8EA43', // bright green (matches toggle border)
+    '#22C55E', // green-500
+    '#34D399', // emerald-400
+    '#0EA5E9', // sky-500
+    '#F59E0B'  // amber-500
   ];
 
   // ── Init UI elements ───────────────────────────────
@@ -129,6 +130,8 @@
     // If cursor entered an iframe, hide parent overlay —
     // the iframe's own content script will handle highlighting
     if (el.tagName === 'IFRAME') {
+      cancelAnimationFrame(rafId);
+      rafId = null;
       currentTarget = el;
       overlay.style.display = 'none';
       overlayPadding.style.display = 'none';
@@ -142,7 +145,13 @@
     overlayPadding.style.display = 'block';
     overlayMargin.style.display = 'block';
     tooltip.style.display = 'block';
-    updateHighlight(el, e);
+
+    // RAF throttle: at most one updateHighlight per frame
+    if (rafId) return;
+    rafId = requestAnimationFrame(function () {
+      updateHighlight(el, e);
+      rafId = null;
+    });
   }
 
   function updateHighlight(el, e) {
@@ -328,8 +337,10 @@
 
     var data = extractElementData(el);
     var text = formatOutput(data, outputFormat);
-    copyToClipboard(text);
-    showToast(el, 1);
+    var attrCount = data.attributes ? Object.keys(data.attributes).length : 0;
+    copyToClipboard(text, function (direct) {
+      showToast(el, attrCount);
+    });
   }
 
   // ── Multi-Select Logic ─────────────────────────────
@@ -370,7 +381,7 @@
     // Close button
     var closeBtn = createDiv('elementsnap-sel-close');
     closeBtn.className = 'es-sel-close';
-    closeBtn.innerHTML = '\u00d7'; // ×
+    closeBtn.innerHTML = '<svg class="lucide lucide-x" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
     closeBtn.style.background = color;
     closeBtn.addEventListener('mousedown', function (ev) {
       ev.preventDefault();
@@ -447,9 +458,9 @@
     if (selections.length === 0) return;
 
     var allText = formatBatch(selections, outputFormat);
-    copyToClipboard(allText);
-
-    showBatchToast(selections.length);
+    copyToClipboard(allText, function () {
+      showBatchToast(selections.length);
+    });
   }
 
   function formatBatch(sel, format) {
@@ -462,10 +473,13 @@
     }
     // YAML and Markdown use per-element format
     var parts = [];
+    var pageUrl = sel[0] && sel[0].data && sel[0].data.pageUrl ? sel[0].data.pageUrl : '';
     if (format === 'yaml') {
       parts.push('# EasyTalk AI (' + sel.length + ' elements)');
+      if (pageUrl) parts.push('# Page: ' + pageUrl);
     } else {
       parts.push('## EasyTalk AI (' + sel.length + ' elements)');
+      if (pageUrl) parts.push('**Page:** `' + pageUrl + '`');
     }
     parts.push('');
 
@@ -519,14 +533,14 @@
       parentInfo = {
         tag: parent.tagName.toLowerCase(),
         id: parent.id || null,
-        class: parent.className || null
+        class: getElementClassName(parent) || null
       };
     }
 
     // Siblings
     var siblings = [];
     if (parent) {
-      var children = Array.from(parent.children);
+      var children = getElementChildren(parent);
       for (var j = 0; j < children.length; j++) {
         var child = children[j];
         if (child === el) continue;
@@ -535,7 +549,7 @@
           tag: child.tagName.toLowerCase(),
           text: siblingText || '(empty)',
           id: child.id || null,
-          class: child.className || null
+          class: getElementClassName(child) || null
         });
       }
       if (siblings.length > 8) siblings = siblings.slice(0, 8);
@@ -553,7 +567,7 @@
         tag: section.tagName.toLowerCase(),
         label: sectionLabel || null,
         id: section.id || null,
-        class: section.className || null
+        class: getElementClassName(section) || null
       };
     }
 
@@ -563,7 +577,7 @@
       cssSelector: cssSelector,
       xpath: xpathStr,
       id: el.id || null,
-      class: el.className || null,
+      class: getElementClassName(el) || null,
       attributes: attrs,
       dimensions: {
         width: Math.round(rect.width),
@@ -571,7 +585,9 @@
       },
       parent: parentInfo,
       siblings: siblings,
-      section: sectionInfo
+      section: sectionInfo,
+      pageUrl: window.location.href,
+      pageTitle: document.title || null
     };
   }
 
@@ -585,6 +601,8 @@
 
   function toYAML(d) {
     var lines = [];
+    lines.push('Page_URL: ' + (d.pageUrl || '(unknown)'));
+    if (d.pageTitle) lines.push('Page_Title: "' + d.pageTitle.replace(/"/g, '\\"') + '"');
     lines.push('Tag: ' + d.tag);
     lines.push('Text: "' + d.text.replace(/"/g, '\\"') + '"');
     lines.push('CSS_Selector: ' + d.cssSelector);
@@ -624,6 +642,8 @@
     var md = [];
     md.push('| Property | Value |');
     md.push('|----------|-------|');
+    md.push('| **Page URL** | `' + (d.pageUrl || '(unknown)') + '` |');
+    if (d.pageTitle) md.push('| **Page Title** | "' + d.pageTitle + '" |');
     md.push('| **Tag** | `' + d.tag + '` |');
     md.push('| **Text** | "' + d.text + '" |');
     md.push('| **CSS Selector** | `' + d.cssSelector + '` |');
@@ -651,37 +671,79 @@
   }
 
   // ── Clipboard ──────────────────────────────────────
-  function copyToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).catch(function () { fallbackCopy(text); });
-    } else {
-      fallbackCopy(text);
+  function copyToClipboard(text, onSuccess) {
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          if (onSuccess) onSuccess(true);
+        }).catch(function () {
+          fallbackCopy(text, onSuccess);
+        });
+        return;
+      }
+    } catch (e) {
+      /* fall back below */
     }
+    fallbackCopy(text, onSuccess);
   }
 
-  function fallbackCopy(text) {
+  function fallbackCopy(text, onSuccess) {
     var ta = document.createElement('textarea');
+    var parent = document.body || document.documentElement;
+    var copied = false;
     ta.value = text;
+    ta.setAttribute('readonly', 'readonly');
     ta.style.position = 'fixed';
     ta.style.left = '-9999px';
     ta.style.top = '-9999px';
-    document.body.appendChild(ta);
+    parent.appendChild(ta);
     ta.focus();
     ta.select();
     try {
-      document.execCommand('copy');
-    } catch (e) { /* ignore */ }
-    document.body.removeChild(ta);
+      copied = document.execCommand('copy');
+    } catch (e) {
+      copied = false;
+    }
+    parent.removeChild(ta);
+
+    if (copied) {
+      if (onSuccess) onSuccess(false);
+    } else {
+      showErrorToast('Copy failed - please try again');
+    }
+  }
+
+  function getElementClassName(el) {
+    var cls = el && el.className;
+    if (!cls) return '';
+    if (typeof cls === 'string') return cls;
+    if (typeof cls.baseVal === 'string') return cls.baseVal;
+    if (el.getAttribute) return el.getAttribute('class') || '';
+    return String(cls);
+  }
+
+  function getElementChildren(el) {
+    var arr = [];
+    if (!el || !el.children) return arr;
+    for (var i = 0; i < el.children.length; i++) {
+      arr.push(el.children[i]);
+    }
+    return arr;
   }
 
   // ── Toast ──────────────────────────────────────────
   var toastTimer = null;
-  function showToast(el, count) {
+  function showToast(el, attrCount) {
     var tag = el.tagName.toLowerCase();
     var preview = el.textContent ? el.textContent.trim().slice(0, 30) : '';
+    var countBadge = (attrCount > 0) ? '<span class="es-badge es-badge-css">' + attrCount + ' attrs</span>' : '';
     toast.innerHTML =
-      '<span class="es-icon">\u2705</span> Copied &lt;' + tag + '&gt;' +
-      (preview ? '<span class="es-preview">' + escapeHtml(preview) + '</span>' : '');
+      '<span class="es-icon"><svg class="lucide lucide-check" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
+      '<div class="es-toast-body">' +
+      '<span class="es-toast-title">Copied &lt;' + tag + '&gt;</span>' +
+      (preview ? '<span class="es-preview">' + escapeHtml(preview) + '</span>' : '') +
+      countBadge +
+      '</div>';
 
     toast.classList.add('es-visible');
     clearTimeout(toastTimer);
@@ -692,7 +754,7 @@
 
   function showBatchToast(count) {
     toast.innerHTML =
-      '<span class="es-icon">\u2705</span> Copied ' + count + ' elements';
+      '<span class="es-icon"><svg class="lucide lucide-check" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Copied ' + count + ' elements';
 
     toast.classList.add('es-visible');
     clearTimeout(toastTimer);
@@ -701,14 +763,32 @@
     }, 2500);
   }
 
+  function showErrorToast(msg) {
+    toast.innerHTML =
+      '<span class="es-icon es-icon-error"><svg class="lucide lucide-alert-circle" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg></span> ' + msg;
+
+    toast.classList.add('es-visible');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () {
+      toast.classList.remove('es-visible');
+    }, 3000);
+  }
+
   // ── Keyboard ───────────────────────────────────────
   function onKeyDown(e) {
     // Cmd+C / Ctrl+C → replicate mode
-    if ((e.metaKey || e.ctrlKey) && e.key === 'c') {
+    if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === 'c') {
       if (currentTarget && selections.length === 0) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         replicateElement(currentTarget);
+        return;
+      }
+      // No target → show hint
+      if (!currentTarget && selections.length === 0) {
+        e.preventDefault();
+        showErrorToast('Hover over an element first, then press ' + (e.metaKey ? '⌘C' : 'Ctrl+C') + ' to copy its style spec');
         return;
       }
     }
@@ -773,14 +853,25 @@
     overlay.classList.add('es-captured');
     setTimeout(function () { overlay.classList.remove('es-captured'); }, 350);
 
-    var visual = extractVisualSpec(el);
-    var states = extractStateSpec(el);
-    var skeleton = buildStructureSkeleton(el);
-    var context = extractContextSpec(el);
-    var keyframes = extractKeyframes(el);
-    var animLib = detectAnimationLib();
+    var visual;
+    var states;
+    var skeleton;
+    var context;
+    var keyframes;
+    var animLib;
+    try {
+      visual = extractVisualSpec(el);
+      states = extractStateSpec(el);
+      skeleton = buildStructureSkeleton(el);
+      context = extractContextSpec(el);
+      keyframes = extractKeyframes(el);
+      animLib = detectAnimationLib();
+    } catch (e) {
+      showErrorToast('Style capture failed - try a parent element');
+      return;
+    }
 
-    var prompt = buildReplicatePrompt({
+    var info = {
       visual: visual,
       states: states,
       skeleton: skeleton,
@@ -789,11 +880,16 @@
       animLib: animLib,
       tag: el.tagName.toLowerCase(),
       id: el.id || null,
-      classes: el.className || null
-    });
+      classes: getElementClassName(el) || null,
+      pageUrl: window.location.href,
+      pageTitle: document.title || null
+    };
 
-    copyToClipboard(prompt);
-    showReplicateToast(el);
+    var prompt = buildReplicatePrompt(info);
+
+    copyToClipboard(prompt, function (direct) {
+      showReplicateToast(el, info);
+    });
   }
 
   // ── 1. Visual Spec ─────────────────────────────────
@@ -875,7 +971,7 @@
   // ── 2. Interaction States ──────────────────────────
   function extractStateSpec(el) {
     var states = { hover: [], active: [], focus: [] };
-    var classStr = el.className || '';
+    var classStr = getElementClassName(el);
     var classes = classStr.split(/\s+/);
 
     // Parse Tailwind state modifiers: hover:*, focus:*, active:*
@@ -964,14 +1060,15 @@
 
     // Key attributes
     if (el.id) node.id = el.id;
-    if (el.className && el.className !== '') {
-      var cls = el.className;
+    var className = getElementClassName(el);
+    if (className) {
+      var cls = className;
       if (cls.length < 120) node.class = cls;
       else node.class = cls.slice(0, 117) + '...';
     }
 
     // Text content (only for leaf-ish elements)
-    var children = Array.from(el.children);
+    var children = getElementChildren(el);
     if (children.length === 0) {
       var txt = el.textContent ? el.textContent.trim() : '';
       if (txt && txt.length < 200) node.text = txt;
@@ -1013,15 +1110,16 @@
       context.parentGap = pcs.gap !== 'normal' ? pcs.gap : null;
       context.parentPadding = pcs.padding !== '0px' ? pcs.padding : null;
       if (parent.id) context.parentId = parent.id;
-      if (parent.className) {
-        var pc = parent.className;
+      var parentClass = getElementClassName(parent);
+      if (parentClass) {
+        var pc = parentClass;
         context.parentClass = pc.length < 120 ? pc : pc.slice(0, 117) + '...';
       }
     }
 
     // Siblings summary
     if (parent) {
-      var children = Array.from(parent.children);
+      var children = getElementChildren(parent);
       var siblingTags = [];
       for (var i = 0; i < Math.min(children.length, 15); i++) {
         var child = children[i];
@@ -1115,7 +1213,11 @@
       var node = queue.shift();
       var aname = getComputedStyle(node).animationName;
       if (aname && aname !== 'none') {
-        aname.split(/,\s*/).forEach(function (n) { if (n.trim()) names[n.trim()] = 1; });
+        var parts = aname.split(/,\s*/);
+        for (var pi = 0; pi < parts.length; pi++) {
+          var n = parts[pi].trim();
+          if (n) names[n] = 1;
+        }
       }
       for (var i = 0; i < node.children.length; i++) {
         if (queue.length < 50) queue.push(node.children[i]); // cap traversal
@@ -1183,6 +1285,13 @@
     lines.push('');
     lines.push('Replicate the following UI element. Match all visual properties,');
     lines.push('spacing, typography, interaction states, and layout context exactly.');
+    lines.push('');
+
+    // --- Page Context ---
+    lines.push('## Page Context');
+    lines.push('');
+    lines.push('- **URL**: `' + (info.pageUrl || '(unknown)') + '`');
+    if (info.pageTitle) lines.push('- **Title**: ' + info.pageTitle);
     lines.push('');
 
     // --- Visual ---
@@ -1342,19 +1451,67 @@
   }
 
   // ── Replicate Toast ────────────────────────────────
-  function showReplicateToast(el) {
+  function showReplicateToast(el, info) {
     var tag = el.tagName.toLowerCase();
     var preview = el.textContent ? el.textContent.trim().slice(0, 30) : '';
+
+    // Build category badges based on what was captured
+    var badges = [];
+
+    // CSS visual props
+    var cssCount = Object.keys(info.visual).length;
+    if (cssCount > 0) {
+      badges.push('<span class="es-badge es-badge-css">CSS ' + cssCount + ' props</span>');
+    }
+
+    // Layout context
+    if (info.context.parentTag || info.context.sectionTag) {
+      badges.push('<span class="es-badge es-badge-layout">Layout ✓</span>');
+    }
+
+    // Animation keyframes
+    var kfCount = Object.keys(info.keyframes).length;
+    if (kfCount > 0) {
+      badges.push('<span class="es-badge es-badge-anim">🎬 ' + kfCount + ' @keyframes</span>');
+    }
+
+    // Interaction states
+    var stateNames = [];
+    for (var s in info.states) {
+      var sv = info.states[s];
+      var hasData = false;
+      if (Array.isArray(sv) && sv.length > 0) hasData = true;
+      else if (typeof sv === 'object' && Object.keys(sv).length > 0) hasData = true;
+      if (hasData) stateNames.push(s);
+    }
+    if (stateNames.length > 0) {
+      badges.push('<span class="es-badge es-badge-states">💡 ' + stateNames.join('/') + '</span>');
+    }
+
+    // Animation library (only if a real JS lib detected, not the CSS fallback)
+    if (info.animLib && info.animLib.length > 0) {
+      var cssOnly = (info.animLib.length === 1 && info.animLib[0].indexOf('CSS animations') === 0);
+      if (!cssOnly) {
+        badges.push('<span class="es-badge es-badge-lib">📦 ' + info.animLib[0] + '</span>');
+      }
+    }
+
+    var badgeHtml = badges.length > 0 ? '<div class="es-toast-badges">' + badges.join('') + '</div>' : '';
+
     toast.innerHTML =
-      '<span class="es-icon">📋</span> Replication spec copied &lt;' + tag + '&gt;' +
+      '<span class="es-icon es-icon-success"><svg class="lucide lucide-check" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>' +
+      '<div class="es-toast-body">' +
+      '<span class="es-toast-title">Style spec copied &lt;' + tag + '&gt;</span>' +
       (preview ? '<span class="es-preview">' + escapeHtml(preview) + '</span>' : '') +
-      '<span class="es-hint">→ Paste into AI chat</span>';
+      badgeHtml +
+      '</div>' +
+      '<span class="es-hint"><svg class="lucide lucide-arrow-right" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg> Paste into AI</span>';
 
     toast.classList.add('es-visible');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () {
       toast.classList.remove('es-visible');
-    }, 3500);
+    }, 4000);
   }
 
   // ── Helpers ────────────────────────────────────────

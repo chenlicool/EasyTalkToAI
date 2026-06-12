@@ -1,3 +1,47 @@
+# 2026-06-12 16:29
+时间：2026-06-12 16:29
+目标：修复复杂组件（多 class 元素）选择时页面卡死的性能 bug
+改动：
+  - utils/selector.js: buildUniqueClassSelector 添加 MAX_ATTEMPTS=200 上限，防止组合爆炸（N=20 class → 100万次 querySelectorAll 卡死），超限 fallback 到 nth-child 路径
+  - content/content.js: onMouseMove 添加 requestAnimationFrame 节流，确保每帧最多一次 updateHighlight 调用，消除 mousemove 高频触发导致的 reflow 堆积
+当前：EasyTalk AI v1.0.4，复杂组件选择不再卡死，选择器引擎组合搜索有防护上限
+禁止动：无
+待办：需在真实 Chrome 扩展环境验证 5 条核心路径
+回滚：回滚本时间段 selector.js 和 content.js 相关改动即可
+
+# 2026-05-20 22:18
+时间：2026-05-20 22:18
+目标：提升复制其它站点样式时的稳定性，尤其是 SVG/icon 节点和剪贴板 fallback
+改动：
+  - content.js: 新增 getElementClassName/getElementChildren，仿写/捕获链路统一安全读取 class，避免 SVGAnimatedString 触发异常
+  - content.js: copyToClipboard/fallbackCopy 检查真实复制结果；批量复制等成功后再显示 toast；Cmd/Ctrl+C 增强按键识别并阻断站点侧复制处理
+当前：样式仿写失败时会显示错误提示，不再把 execCommand 失败误报为成功
+禁止动：manifest.json permissions 结构 / 既有 action 协议
+待办：需要在真实 Chrome 扩展环境补跑 5 条核心路径
+回滚：回滚本时间段 content.js 相关稳定性补丁即可
+
+# 2026-05-20 17:37
+时间：2026-05-20 17:37
+目标：选择元素时输出带上页面 URL，让 AI 知道精确的页面来源
+改动：
+  - content.js: extractElementData 新增 pageUrl/pageTitle 字段；toYAML/toMarkdown 输出增加 Page_URL/Page_Title；formatBatch 批量头部增加页面 URL；buildReplicatePrompt 增加 Page Context 段落
+当前：EasyTalk AI v1.0.4，三种模式（识别/仿写/多选）均输出 pageUrl + pageTitle
+禁止动：无
+待办：无
+回滚：无
+
+# 2026-05-15 20:58
+时间：2026-05-15 20:58
+目标：Toast/Close 图标替换为 Lucide SVG + 选中颜色对齐主界面暗绿主题
+改动：
+  - content.js: 5 处 emoji 替换为 Lucide SVG（×→x, ✅→check, 📋→clipboard, →→arrow-right）+ 选中色盘改为绿主题配色
+  - content.css: .es-sel-close 改用 flexbox 居中 SVG；toast 背景改为 #262626 + 黑边；es-hint 色改 #8BBF2F；es-icon/es-hint 增加 inline-flex + SVG 辅助类
+当前：EasyTalk AI v1.0.4，Overlay/Toast 图标与颜色对齐 Popup 暗绿主题
+禁止动：无
+待办：无
+回滚：无
+约束：ES5 / 向内兼容
+
 # 2026-05-15 19:00
 时间：2026-05-15 19:00
 目标：Launch prep — 重写 README + 新增文档 + assets 目录

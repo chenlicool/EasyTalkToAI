@@ -78,9 +78,14 @@ var ElementSnapSelector = (function () {
     });
     var tag = el.tagName.toLowerCase();
 
+    var MAX_ATTEMPTS = 200;
+    var attempts = 0;
+
     for (var len = classes.length; len >= 1; len--) {
       var combos = getCombinations(classes, len);
       for (var i = 0; i < combos.length; i++) {
+        attempts++;
+        if (attempts > MAX_ATTEMPTS) return null;
         var sel = tag + '.' + combos[i].map(function (c) { return CSS.escape(c); }).join('.');
         if (document.querySelectorAll(sel).length === 1) {
           return sel;

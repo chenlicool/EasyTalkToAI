@@ -55,12 +55,13 @@
   pointer-events: none;
   z-index: 2147483647;
   background: #262626;
-  color: #f1f5f9;
+  color: #F1F5F9;
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 12px;
   line-height: 1.4;
   padding: 6px 10px;
   border-radius: 6px;
+  border: 1px solid #000000;
   white-space: normal;
   max-width: 420px;
   overflow: hidden;
@@ -177,7 +178,7 @@
   font-weight: 700;
   line-height: 22px;
   text-align: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
   z-index: 1;
 }
 
@@ -190,11 +191,9 @@
   height: 22px;
   border-radius: 50%;
   color: #fff;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 22px;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
   pointer-events: auto;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
@@ -221,12 +220,13 @@
   left: 50%;
   transform: translateX(-50%) translateY(10px);
   z-index: 2147483647;
-  background: #1e293b;
-  color: #f1f5f9;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #262626;
+  color: #F1F5F9;
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   font-size: 13px;
   padding: 10px 20px;
   border-radius: 10px;
+  border: 1px solid #000000;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
   opacity: 0;
   transition: opacity 0.25s ease, transform 0.25s ease;
@@ -242,11 +242,14 @@
 }
 
 #elementsnap-toast .es-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 16px;
 }
 
 #elementsnap-toast .es-preview {
-  color: #94a3b8;
+  color: #A4A4A4;
   font-size: 11px;
   margin-left: 8px;
   max-width: 200px;
@@ -256,10 +259,92 @@
 }
 
 #elementsnap-toast .es-hint {
-  color: #60a5fa;
+  color: #8BBF2F;
   font-size: 11px;
   margin-left: auto;
   padding-left: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+#elementsnap-toast .es-toast-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+#elementsnap-toast .es-toast-title {
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* ── Toast badges ─────────────────────────────────── */
+#elementsnap-toast .es-toast-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: 100%;
+  margin-top: 2px;
+}
+
+#elementsnap-toast .es-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 5px;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+#elementsnap-toast .es-badge-css {
+  background: rgba(59, 130, 246, 0.2);
+  color: #93C5FD;
+  border: 0.5px solid rgba(59, 130, 246, 0.35);
+}
+
+#elementsnap-toast .es-badge-layout {
+  background: rgba(139, 191, 47, 0.18);
+  color: #A8EA43;
+  border: 0.5px solid rgba(139, 191, 47, 0.3);
+}
+
+#elementsnap-toast .es-badge-anim {
+  background: rgba(168, 85, 247, 0.2);
+  color: #C4B5FD;
+  border: 0.5px solid rgba(168, 85, 247, 0.35);
+}
+
+#elementsnap-toast .es-badge-states {
+  background: rgba(245, 158, 11, 0.2);
+  color: #FCD34D;
+  border: 0.5px solid rgba(245, 158, 11, 0.35);
+}
+
+#elementsnap-toast .es-badge-lib {
+  background: rgba(236, 72, 153, 0.2);
+  color: #F9A8D4;
+  border: 0.5px solid rgba(236, 72, 153, 0.35);
+}
+
+/* ── Toast states ─────────────────────────────────── */
+#elementsnap-toast .es-icon-success svg {
+  color: #22C55E;
+}
+
+#elementsnap-toast .es-icon-error svg {
+  color: #EF4444;
+}
+
+/* ── Lucide SVG helper ────────────────────────────── */
+.es-sel-close svg,
+#elementsnap-toast svg {
+  display: block;
 }
 
 /* ════════════════════════════════════════════════════
