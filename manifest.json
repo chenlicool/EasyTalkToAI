@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "EasyTalk AI",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Click any element → AI-ready description. Cmd+C → full replication spec. Talk to AI effortlessly.",
   "permissions": [
     "activeTab",
